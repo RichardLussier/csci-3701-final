@@ -1,0 +1,97 @@
+---
+title: "Stage 1"
+author: "Richard Lussier, Erik Rauer"
+date: "10/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<h3 color="red">Purpose of Project</h3>
+
+The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because of the University's current 100% renewable energy status. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if the University will need to increase their energy production in the near future.
+
+<h3 color="red">Potential Uses of Project</h3>
+
+As stated above, this project is hoping to provide insight to the University as to whether they need to imcrease electricity production to meet the demand of all of their buildings. This would mainly affect the University and their goal to remain carbon neutral and be self-sustaining. Additionally, this project could affect the students at UMM who are interested in learning more about the University's efforts to remain carbon neutral.
+
+<h3 color="red">Potential Biases</h3>
+
+The strongest bias we're anticipating in the data will come from the past few years, where COVID-19 may have influenced the electricity demand for certain campus buildings (since courses were taught online). We anticipate the months of March-May 2020 to be the most impacted, since that was the first semester everyone was sent home and every class was transitioned to be online. For Semesters after Spring 2020, there may be additional bias as classes continued to be offered online/hybrid, which may affect the distribution of electricity demand (people may have been staying in their dorms more or stayed off-campus altogether).
+
+<h3 color="red">The Data</h3>
+
+The data was collected from various modbus meters that are connected to each building on the Morris campus. The data from these meters can be found on [this website](https://em-cof.energy.umn.edu/meterreport/default.aspx). The data we have chose to focus on is the "electricity demand" portion of each building from 08/01/2017 to 05/31/2021. In order to download this data, you can follow the steps below:
+<ol>
+1. Click on the button at the top that is labeled "View Modbus Data". This is the type of energy meter UMM uses.
+2. On the drop down menu that says "Twin Cities", switch it to "Morris". This will allow you to select buildings on the Morris campus.
+3. For the "Building Number" field, click "Select All". This selects every building on campus.
+4. Under "Frequency of Data", select "1 Day" and check the box labeled "Average over frequency"
+5. For "Meter Type(s)", click "Clear Selected" and only select "EL". This will filter for only electrical demand/consumption.
+6. For "Consumption/Demand" select "Demand". This will filter only the electricity demand.
+7. For "Real/Virtual" select "Real". This allows you to select data from each meter individually rather than an accumulation of several meters.
+8. Under "Meter (All Points)", click "Select All".
+9. For the Starting Date, select 08/01/2017. For the Ending Date, select 05/31/2021.
+10. Ensure that the "Excel" option is selected on the final drop-down menu and then click "Save individual values in a report".
+</ol>
+
+<h3 color="red">Variables and Data Types</h3>
+
+There is a total of 34 variables, 32 of which correspond to different modbus meters throughout the UMM campus. These are all numeric values and currently have a variable name that has the format "04-7xx-EL-R0x", where x stands for a digit 0-9. These variable names will all be changed later on to better represent which building the data was collected from. Another variable that doesn't correspond to a modbus is the "Date" variable, which is in a date format and represents which day the data was collected. The final variable is "Time", which is in a time format. However, the "Time" variable will be removed later on since all of the data was collected at midnight and will not be relevant for our analysis.
+
+<h3 color="red">Data Wrangling</h3>
+
+Since the unusable data is labeled with different colors on the excel spreadsheet (yellow, gray, and red), we need to set all of the cells with those colors to #N/A. This is most easily done inside of excel (before you move the data to R). This can be achieved in the following way:
+</ol>
+1. Inside of your excel spreadsheet, go to the "Home" menu and click "Find and Select" (top right). Then, select "Replace".
+2. In the "Find what" row, click on the "Format" button and click on the bottom left button labeled "Choose Format From Cell". Then, click on cell A1 (the red cell with "Meter issue" typed inside of it).
+<ol>
+a. Click on "Format" again and go through each section other than "Fill" (Number, Alignment, Font, Border, Protection) and click "Clear" in the bottom right.
+b. In the "Replace with" row, click on the provided text box and type "#N/A".
+c. Click on "Replace All" in the lower left of the window.
+</ol>
+3. Repeat step 2 with cells A2 and A3.
+4. Delete rows 1-3. This allows the data to be imported into R.
+</ol>
+
+Additional values that would make sense to replace are the variable names for each modbus in order to make them more understandable to a human. These values can be collected on [the website](https://em-cof.energy.umn.edu/meterreport/default.aspx) we used to obtain our data. However, these values are easier changed inside of R and the command used to modify the values can be found in the next section about importing the data into R.
+
+<h3 color="red">Importing into R</h3>
+
+Once the excel file is saved, you can go into R and import the data by following the next few steps:
+<ol>
+1. Under "Files" on the right side of your screen, select "upload" and upload your excel file into your target destination.
+2. In the top right, go to the "Environment" screen, click on "Import Dataset", and select "From excel".
+3. Browse your files and select the excel file that you uploaded from step 1.
+4. (optional) Name your file "Electircal_Demand".
+5. Click "Import".
+</ol>
+
+Once the data is inside of R, run the following commands to complete the final data wrangling portions:
+
+```{r}
+#Loading the dataset into our markdown
+load("Electrical_Demand.rdata")
+
+#Converting our date from a character into a date format
+Electrical_Demand$Date <- as.Date(Electrical_Demand$Date, format = "%m/%d/%Y")
+
+#Removing the time variable
+removeTime <- Electrical_Demand[c(1,3:34)]
+
+#The vector containing all of the proper building names
+buildingNames <- c("Date", "MERC", "Spooner_Hall", "Camden_Hall", "Welcome_Center", "Behmler_Hall", "Blakeley_Hall", "Imholte_Hall", "Education", "Pine_Hall", "Transportation_Garage", "Humanities", "Student_Center", "TMC", "Gay_Hall", "Science_West_Wing", "Science_East_Wing", "Briggs_Library", "Physical_Education", "RFC_Juice_Bar", "Old_Heating_Plant", "Biomass_Heating_Plant", "Heating_Plant_Addition", "Indy_Hall", "Dining_Hall", "Campus_Apartments", "Fine_Arts_Ph1", "Fine_Arts_Ph2", "Physical_Education_RFC", "Transportation_Garage_Storage", "Big_Cat_Stadium", "Transportation_Garage_Recycle_Center", "Green_Prairie")
+
+#Change variable names
+colnames(removeTime) <- buildingNames
+
+str(removeTime)
+```
+
+**Explanation:**
+
+First, we converted the Date variable into a date format instead of a character. Next, we removed our time variable since all data was collected at midnight and the variable isn't useful to us. Lastly, we converted the variable names for all of the modbusses into the actual building name to improve user readability.
+
+

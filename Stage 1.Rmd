@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 <h3 color="red">Purpose of Project</h3>
 
-The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because of the University's current 100% renewable energy status. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if the University will need to increase their energy production in the near future.
+The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because Morris recently achieved net carbon neutrality in terms of energy consumption. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if and how much the University will need to increase their energy production in the near future.
 
 <h3 color="red">Potential Uses of Project</h3>
 
@@ -23,12 +23,12 @@ The strongest bias we're anticipating in the data will come from the past few ye
 
 <h3 color="red">The Data</h3>
 
-The data was collected from various modbus meters that are connected to each building on the Morris campus. The data from these meters can be found on [this website](https://em-cof.energy.umn.edu/meterreport/default.aspx). The data we have chose to focus on is the "electricity demand" portion of each building from 08/01/2017 to 05/31/2021. In order to download this data, you can follow the steps below:
+The data was collected from various modbus meters that are connected to each building on the Morris campus. The data from these meters can be found on [this website](https://em-cof.energy.umn.edu/meterreport/default.aspx). The data we have chosen to focus on is the average daily "electricity demand" of each building from 08/01/2017 to 05/31/2021. In order to download this data, you can follow the steps below:
 <ol>
 1. Click on the button at the top that is labeled "View Modbus Data". This is the type of energy meter UMM uses.
 2. On the drop down menu that says "Twin Cities", switch it to "Morris". This will allow you to select buildings on the Morris campus.
 3. For the "Building Number" field, click "Select All". This selects every building on campus.
-4. Under "Frequency of Data", select "1 Day" and check the box labeled "Average over frequency"
+4. Under "Frequency of Data", select "1 Day" and check the box labeled "Average over frequency" to the right of it
 5. For "Meter Type(s)", click "Clear Selected" and only select "EL". This will filter for only electrical demand/consumption.
 6. For "Consumption/Demand" select "Demand". This will filter only the electricity demand.
 7. For "Real/Virtual" select "Real". This allows you to select data from each meter individually rather than an accumulation of several meters.
@@ -39,7 +39,7 @@ The data was collected from various modbus meters that are connected to each bui
 
 <h3 color="red">Variables and Data Types</h3>
 
-There is a total of 34 variables, 32 of which correspond to different modbus meters throughout the UMM campus. These are all numeric values and currently have a variable name that has the format "04-7xx-EL-R0x", where x stands for a digit 0-9. These variable names will all be changed later on to better represent which building the data was collected from. Another variable that doesn't correspond to a modbus is the "Date" variable, which is in a date format and represents which day the data was collected. The final variable is "Time", which is in a time format. However, the "Time" variable will be removed later on since all of the data was collected at midnight and will not be relevant for our analysis.
+There are a total of 34 variables, 32 of which correspond to different modbus meters throughout the UMM campus. These are all numeric values and currently have a variable name that has the format "04-7xx-EL-R0x", where x stands for a digit 0-9. These variable names will all be changed later on to better represent which building the data was collected from. Another variable that doesn't correspond to a modbus is the "Date" variable, which is in a date format and represents which day the data was collected. The final variable is "Time", which is in a time format. However, we will be removing the "Time" variable later on since all of the data was collected at midnight and will not be relevant for our analysis.
 
 <h3 color="red">Data Wrangling</h3>
 

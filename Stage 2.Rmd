@@ -1,0 +1,58 @@
+---
+title: "Stage 2"
+author: "Richard Lussier, Erik Rauer"
+date: "11/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load("Elec_Demand.rdata")
+library(ggplot2)
+```
+
+<h3 color="red">Summary</h3>
+
+The goal of our project is to look at patterns in electrical demand throughout various university buildings to determine if there are vatriables that can correlate to the electrical demand. Since Stage 1, we have added 4 new variables to the dataset; dry bulb temperature, wet bulb temperature, dewpoint, and humidity. These variables (along with others we already had such as the date) will be used to find patterns in the electircal demand to see if certain conditions correlate to an increase or decrease in electircal demand.
+
+<h3 color="red">Data Description</h3>
+
+The data consists of 1400 observations (rows) over 38 variables (columns). The date variable is a date between August 1st, 2017 and May 31st, 2021. We plan to use this variable to determine if the time of year affects the electrical demand of university buildings. The next variable is time, which won't be used since our data is averaged out throughout the day (making each time midnight). The next 32 variables are the different modbus meters for campus buildings, which are measured in kilowatts per hour. The final four variables are new variables from Stage 1 and were mentioned above: dry bulb temperature, wet bulb temperature, dewpoint, and humidity.
+
+Dry bulb temperature and wet bulb temperature are in degrees Fahrenheit and are used to determine the outside temperature. Humidity is measured as a percentage (from 0-100) and measures the humidity of the air. Finally, the dewpoint is measured in degrees Fahrenheit and measures the dewpoint.
+
+Data was transformed in Stage 1. However, an additional data transformation we can make is removing the time variable, which will be done during our initial observations.
+
+An important note for the data is that the kilowatts per hour variable for each campus building was averaged out throughout the 24 hour period of the day, but the weather variables were taken at midnight.
+
+<h3 color="red">Initial Observations</h3>
+
+```{r}
+#Code from Stage 1 with our transformations:
+#Converting our date from a character into a date format
+Elec_Demand$Date <- as.Date(Elec_Demand$Date, format = "%m/%d/%Y")
+
+#Removing the time variable
+removeTime <- Elec_Demand[c(1,3:38)]
+
+#The vector containing all of the proper building names
+buildingNames <- c("Date", "MERC", "Spooner_Hall", "Camden_Hall", "Welcome_Center", "Behmler_Hall", "Blakeley_Hall", "Imholte_Hall", "Education", "Pine_Hall", "Transportation_Garage", "Humanities", "Student_Center", "TMC", "Gay_Hall", "Science_West_Wing", "Science_East_Wing", "Briggs_Library", "Physical_Education", "RFC_Juice_Bar", "Old_Heating_Plant", "Biomass_Heating_Plant", "Heating_Plant_Addition", "Indy_Hall", "Dining_Hall", "Campus_Apartments", "Fine_Arts_Ph1", "Fine_Arts_Ph2", "Physical_Education_RFC", "Transportation_Garage_Storage", "Big_Cat_Stadium", "Transportation_Garage_Recycle_Center", "Green_Prairie", "Dry_Bulb", "Dewpoint", "Humidity", "Wet_Bulb")
+
+#Change variable names
+colnames(removeTime) <- buildingNames
+
+str(removeTime)
+mean(removeTime$MERC, na.rm = TRUE)
+plot(x=removeTime$Date, y=removeTime$Science_East_Wing, xlim=as.Date(c("2017-08-20", "2018-05-31")))
+ggplot(removeTime) + geom_point(aes(x=Date, y=Behmler_Hall, color="Behmler"), color="dark green") + geom_point(aes(x=Date, y=Dry_Bulb, color="Wet Bulb Temperature"), color="dark red") + xlim(as.Date("2020-10-10"), as.Date("2020-11-15"))
+```
+
+From this plot of Behmler hall with the dry bulb temperature between the dates of October 10th, 2020 to November 15th, 2020, we notice that the electrical demand drops slightly twice a week, which we suspect is the weekend. Additionally, the electrical demand goes up as the temperature went up around mid November 2020.
+
+<h3 color="red">Sanity Checks</h3>
+
+Our dataframe has 1400 observations, so we need to ensure that 1400 is the amount of days between August 1st, 2017 and May 31st, 2021. Using [this website](https://www.timeanddate.com/date/durationresult.html?m1=08&d1=01&y1=2017&m2=05&d2=31&y2=2021&ti=on), we can see that there are in fact 1400 days between the two given dates (including May 31st).
+
+<h3 color="red">Whats Next</h3>
+
+In our upcoming stages in the project, we hope to plot more buildings with the temperature and other weather variables while considering other outside variables such as days of the week, season, and current events. This will involve using a lot of plots and other visualization tools in order to spot these patterns.

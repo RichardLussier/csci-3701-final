@@ -1,0 +1,909 @@
+---
+title: "CSci 3701 Project Stage 3"
+author: "Richard Lussier, Erik Rauer"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+
+
+```{r setup, include=FALSE}
+## Libraries we need
+library(ggplot2)
+library(dplyr)
+library(radiant.data)
+library(modelr)
+
+## Import the data
+load("Elec_Demand.rdata")
+
+#Code from Stage 1 with our transformations:
+#Converting our date from a character into a date format
+Elec_Demand$Date <- as.Date(Elec_Demand$Date, format = "%m/%d/%Y")
+
+#Removing the time variable
+demandData <- Elec_Demand[c(1,3:38)]
+
+#The vector containing all of the proper building names
+buildingNames <- c("Date", "MERC", "Spooner_Hall", "Camden_Hall", "Welcome_Center", "Behmler_Hall", "Blakeley_Hall", "Imholte_Hall", "Education", "Pine_Hall", "Transportation_Garage", "Humanities", "Student_Center", "TMC", "Gay_Hall", "Science_West_Wing", "Science_East_Wing", "Briggs_Library", "Physical_Education", "RFC_Juice_Bar", "Old_Heating_Plant", "Biomass_Heating_Plant", "Heating_Plant_Addition", "Indy_Hall", "Dining_Hall", "Campus_Apartments", "Fine_Arts_Ph1", "Fine_Arts_Ph2", "Physical_Education_RFC", "Transportation_Garage_Storage", "Big_Cat_Stadium", "Transportation_Garage_Recycle_Center", "Green_Prairie", "Dry_Bulb", "Dewpoint", "Humidity", "Wet_Bulb")
+
+#Change variable names
+colnames(demandData) <- buildingNames
+
+# Shift dates by one since we measured at midnight every day
+demandData$Date <- c(as.Date("7/31/2017", format = "%m/%d/%Y"), demandData$Date[-1400])
+
+
+# Split into on break and not on break
+
+onBreak <- function(date) {
+    if (date < as.Date("2017/08/23", "%Y/%m/%d")) {
+      return(TRUE)
+      }
+    else if (date < as.Date("2017/12/15", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2018/01/16", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2018/03/10", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2018/03/19", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2018/05/11", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2018/08/29", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2018/12/14", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2019/01/22", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2019/03/16", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2019/03/25", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2019/05/17", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2019/08/28", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2019/12/20", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2020/01/21", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2020/03/14", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2020/08/19", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2020/11/25", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else if (date < as.Date("2021/01/19", "%Y/%m/%d")) {
+      return(TRUE)
+    }
+    else if (date < as.Date("2021/05/14", "%Y/%m/%d")) {
+      return(FALSE)
+    }
+    else {
+      return(TRUE)
+    }
+}
+
+demandData <- demandData %>%
+  mutate(studentsOnBreak = sapply(Date, onBreak))
+
+demandData
+```
+
+
+<h3 color="red">Reminder of Purpose of Project</h3>
+
+The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because Morris recently achieved net carbon neutrality in terms of energy consumption. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if and how much the University will need to increase their energy production in the near future.
+
+<h3 color="red">Behmler Hall</h3>
+
+<h4 color="red">By Weekday</h4>
+```{r}
+# Add column for weekdays and graph Behmler's Demand
+demandData = demandData %>%
+  mutate(Weekday = wday(Date, label = TRUE))
+
+demandData
+
+ggplot(demandData, aes(Weekday, Behmler_Hall)) +
+  geom_boxplot()
+
+
+# Create a model by Weekday
+mod <- lm(Behmler_Hall ~ Weekday, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(demandData, aes(Weekday, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_WDay_Resids")
+
+ggplot(demandData, aes(Date, Behmler_WDay_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+<h4 color="red">By Month</h4>
+```{r}
+# Create a model by Month
+demandData <- demandData %>%
+  mutate(Month = month(Date, label = TRUE))
+
+demandData
+
+mod <- lm(formula = Behmler_Hall ~ Month, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Month) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(demandData, aes(Month, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_Month_Resids")
+
+ggplot(demandData, aes(Date, Behmler_Month_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+<h4 color="red">By Dry Bulb Temp</h4>
+
+```{r}
+# Model by Dry Bulb Temp
+ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
+  geom_point()
+
+dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb, data = demandData)
+dryBulbExpModel <- lm(log(Behmler_Hall) ~ Dry_Bulb, data = demandData)
+
+summary(dryBulbLinearModel)
+coefficients(dryBulbLinearModel)
+
+summary(dryBulbExpModel)
+expModelCoeff <- coefficients(dryBulbExpModel)
+expModelCoeff
+
+bulbValues <- seq(-30, 90, 0.5)
+exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+
+ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
+  geom_point() +
+  geom_smooth(method='lm', formula = y ~ x)
+
+demandData <- demandData %>%
+  add_residuals(dryBulbLinearModel, var="Behmler_DryBulb_Resids")
+
+ggplot(demandData, aes(Date, Behmler_DryBulb_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+plot(demandData$Dry_Bulb, demandData$Behmler_Hall)
+lines(bulbValues, exponentialPredictions, col="red")
+```
+
+<h4 color="red">By Summer</h4>
+
+```{r}
+
+# Model only Summer
+
+summerData <- demandData %>%
+  filter(month(Date) %in% c(6, 7, 8))
+
+summerData
+
+# Create a model by Weekday
+mod <- lm(Behmler_Hall ~ Weekday, data = summerData)
+
+summary(mod)
+
+grid = summerData %>%
+  data_grid(Weekday) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(summerData, aes(Weekday, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+summerData <- summerData %>%
+  add_residuals(mod, var="Behmler_WDay_Resids")
+
+ggplot(summerData, aes(Date, Behmler_WDay_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Model by Dry Bulb Temp
+ggplot(summerData, aes(Dry_Bulb, Behmler_Hall)) +
+  geom_point()
+
+dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb, data = summerData)
+dryBulbExpModel <- lm(log(Behmler_Hall) ~ Dry_Bulb, data = summerData)
+
+summary(dryBulbLinearModel)
+coefficients(dryBulbLinearModel)
+
+summary(dryBulbExpModel)
+expModelCoeff <- coefficients(dryBulbExpModel)
+expModelCoeff
+
+bulbValues <- seq(-30, 90, 0.5)
+exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+
+ggplot(summerData, aes(Dry_Bulb, Behmler_Hall)) +
+  geom_point() +
+  geom_smooth(method='lm', formula = y ~ x)
+
+plot(summerData$Dry_Bulb, summerData$Behmler_Hall)
+lines(bulbValues, exponentialPredictions, col="red")
+
+```
+
+<h4 color="red">By Covid</h4>
+
+```{r}
+
+# Split into pre and post Covid
+
+demandData <- demandData %>%
+  mutate(preCOVID = Date < as.Date("2020/03/14", "%Y/%m/%d"))
+
+demandData
+
+# Create a model by preCovid
+mod <- lm(Behmler_Hall ~ preCOVID, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(preCOVID) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(demandData, aes(preCOVID, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_preCovid_Resids")
+
+ggplot(demandData, aes(Date, Behmler_preCovid_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Create a model by preCovid and Month
+mod <- lm(Behmler_Hall ~ preCOVID + Month, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Month,preCOVID) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+grid
+
+ggplot(demandData, aes(Month, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_preCovidMonth_Resids")
+
+ggplot(demandData, aes(Date, Behmler_preCovidMonth_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+```
+```{r}
+
+# Model by Dry Bulb Temp
+ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
+  geom_point(aes(colour = factor(preCOVID)))
+
+# dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb + preCOVID, data = demandData)
+# 
+# summary(dryBulbLinearModel)
+# coefficients(dryBulbLinearModel)
+# 
+# summary(dryBulbExpModel)
+# expModelCoeff <- coefficients(dryBulbExpModel)
+# expModelCoeff
+# 
+# bulbValues <- seq(-30, 90, 0.5)
+# exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+# 
+# ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
+#   geom_point() +
+#   geom_smooth(method='lm', formula = y ~ x)
+# 
+# demandData <- demandData %>%
+#   add_residuals(dryBulbLinearModel, var="Behmler_DryBulb_Resids")
+# 
+# ggplot(demandData, aes(Date, Behmler_DryBulb_Resids)) + 
+#   geom_ref_line(h=0) + 
+#   geom_line()
+
+```
+
+
+<h4 color="red">By If Students are On Campus</h4>
+
+```{r}
+
+# Create a model by studentsOnBreak
+mod <- lm(Behmler_Hall ~ studentsOnBreak, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(demandData, aes(studentsOnBreak, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_onBreak_Resids")
+
+ggplot(demandData, aes(Date, Behmler_onBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+
+# Create a model by preCovid and onBreak
+mod <- lm(Behmler_Hall ~ preCOVID + studentsOnBreak, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak,preCOVID) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+grid
+
+ggplot(demandData, aes(studentsOnBreak, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Behmler_preCovidBreak_Resids")
+
+ggplot(demandData, aes(Date, Behmler_preCovidBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+```
+
+<h3 color="red">Pine Hall</h3>
+
+<h4 color="red">By Weekday</h4>
+```{r}
+# Add column for weekdays and graph Pine's Demand
+ggplot(demandData, aes(Weekday, Pine_Hall)) +
+  geom_boxplot()
+
+
+# Create a model by Weekday
+mod <- lm(Pine_Hall ~ Weekday, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(demandData, aes(Weekday, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_WDay_Resids")
+
+ggplot(demandData, aes(Date, Pine_WDay_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+<h4 color="red">By Month</h4>
+```{r}
+# Create a model by Month
+
+mod <- lm(formula = Pine_Hall ~ Month, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Month) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(demandData, aes(Month, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_Month_Resids")
+
+ggplot(demandData, aes(Date, Pine_Month_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+<h4 color="red">By Dry Bulb Temp</h4>
+
+```{r}
+# Model by Dry Bulb Temp
+ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
+  geom_point()
+
+dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb, data = demandData)
+dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = demandData)
+
+summary(dryBulbLinearModel)
+coefficients(dryBulbLinearModel)
+
+summary(dryBulbExpModel)
+expModelCoeff <- coefficients(dryBulbExpModel)
+expModelCoeff
+
+bulbValues <- seq(-30, 90, 0.5)
+exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+
+ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
+  geom_point() +
+  geom_smooth(method='lm', formula = y ~ x)
+
+demandData <- demandData %>%
+  add_residuals(dryBulbLinearModel, var="Pine_DryBulb_Resids")
+
+ggplot(demandData, aes(Date, Pine_DryBulb_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+plot(demandData$Dry_Bulb, demandData$Pine_Hall)
+lines(bulbValues, exponentialPredictions, col="red")
+```
+
+<h4 color="red">By Summer</h4>
+
+```{r}
+
+# Model only Summer
+
+summerData <- demandData %>%
+  filter(month(Date) %in% c(6, 7, 8))
+
+summerData
+
+# Create a model by Weekday
+mod <- lm(Pine_Hall ~ Weekday, data = summerData)
+
+summary(mod)
+
+grid = summerData %>%
+  data_grid(Weekday) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(summerData, aes(Weekday, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+summerData <- summerData %>%
+  add_residuals(mod, var="Pine_WDay_Resids")
+
+ggplot(summerData, aes(Date, Pine_WDay_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Model by Dry Bulb Temp
+ggplot(summerData, aes(Dry_Bulb, Pine_Hall)) +
+  geom_point()
+
+dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb, data = summerData)
+dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = summerData)
+
+summary(dryBulbLinearModel)
+coefficients(dryBulbLinearModel)
+
+summary(dryBulbExpModel)
+expModelCoeff <- coefficients(dryBulbExpModel)
+expModelCoeff
+
+bulbValues <- seq(-30, 90, 0.5)
+exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+
+ggplot(summerData, aes(Dry_Bulb, Pine_Hall)) +
+  geom_point() +
+  geom_smooth(method='lm', formula = y ~ x)
+
+plot(summerData$Dry_Bulb, summerData$Pine_Hall)
+lines(bulbValues, exponentialPredictions, col="red")
+
+```
+
+
+<h4 color="red">By Covid</h4>
+
+```{r}
+
+# Create a model by preCovid
+mod <- lm(Pine_Hall ~ preCOVID, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(preCOVID) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(demandData, aes(preCOVID, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_preCovid_Resids")
+
+ggplot(demandData, aes(Date, Pine_preCovid_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Create a model by preCovid and Month
+mod <- lm(Pine_Hall ~ preCOVID + Month, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Month,preCOVID) %>%
+  add_predictions(mod, "Pine_Hall")
+
+grid
+
+ggplot(demandData, aes(Month, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_preCovidMonth_Resids")
+
+ggplot(demandData, aes(Date, Pine_preCovidMonth_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+```
+```{r}
+
+# Model by Dry Bulb Temp
+ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
+  geom_point(aes(colour = factor(preCOVID)))
+
+dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb + preCOVID, data = demandData)
+# dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = demandData)
+
+summary(dryBulbLinearModel)
+coefficients(dryBulbLinearModel)
+
+# summary(dryBulbExpModel)
+# expModelCoeff <- coefficients(dryBulbExpModel)
+# expModelCoeff
+# 
+# bulbValues <- seq(-30, 90, 0.5)
+# exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
+
+ggplot(demandData, aes(Dry_Bulb, Pine_Hall, colour = factor(preCOVID))) +
+  geom_point() +
+  geom_smooth(method='lm', aes(group = preCOVID), formula = y ~ x)
+
+demandData <- demandData %>%
+  add_residuals(dryBulbLinearModel, var="Pine_preCovidDryBulb_Resids")
+
+ggplot(demandData, aes(Date, Pine_preCovidDryBulb_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+# plot(demandData$Dry_Bulb, demandData$Pine_Hall)
+# lines(bulbValues, exponentialPredictions, col="red")
+
+```
+
+
+<h4 color="red">By If Students are On Campus</h4>
+
+```{r}
+
+# Create a model by studentsOnBreak
+mod <- lm(Pine_Hall ~ studentsOnBreak, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(demandData, aes(studentsOnBreak, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_onBreak_Resids")
+
+ggplot(demandData, aes(Date, Pine_onBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+
+# Create a model by preCovid and onBreak
+mod <- lm(Pine_Hall ~ preCOVID + studentsOnBreak, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak,preCOVID) %>%
+  add_predictions(mod, "Pine_Hall")
+
+grid
+
+ggplot(demandData, aes(studentsOnBreak, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Pine_preCovidBreak_Resids")
+
+ggplot(demandData, aes(Date, Pine_preCovidBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+```
+
+
+
+
+<h3 color="red">Imholte</h3>
+
+<h4 color="red">By Weekday</h4>
+```{r}
+# Add column for weekdays and graph Imholte's Demand
+ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot()
+
+
+# Create a model by Weekday
+mod <- lm(Science_East_Wing ~ Weekday, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Imholte_WDay_Resids")
+
+ggplot(demandData, aes(Date, Imholte_WDay_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+<h4 color="red">By Month</h4>
+```{r}
+# Create a model by Month
+
+mod <- lm(formula = Science_East_Wing ~ Month, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Month) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+ggplot(demandData, aes(Month, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Imholte_Month_Resids")
+
+ggplot(demandData, aes(Date, Imholte_Month_Resids)) +
+  geom_ref_line(h=0) +
+  geom_line()
+```
+
+<h4 color="red">By Covid</h4>
+
+```{r}
+
+# Create a model by preCovid
+mod <- lm(Science_East_Wing ~ preCOVID, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(preCOVID) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+ggplot(demandData, aes(preCOVID, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Imholte_preCovid_Resids")
+
+ggplot(demandData, aes(Date, Imholte_preCovid_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+```
+
+
+<h4 color="red">By If Students are On Campus</h4>
+
+```{r}
+
+# Create a model by studentsOnBreak
+mod <- lm(Science_East_Wing ~ studentsOnBreak, data = demandData)
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+ggplot(demandData, aes(studentsOnBreak, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, colour = "red", size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Imholte_onBreak_Resids")
+
+ggplot(demandData, aes(Date, Imholte_onBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+```
+
+```{r}
+
+
+# Create a model by preCovid and onBreak
+mod <- lm(Science_East_Wing ~ preCOVID + studentsOnBreak, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(studentsOnBreak,preCOVID) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+grid
+
+ggplot(demandData, aes(studentsOnBreak, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Science_preCovidBreak_Resids")
+
+ggplot(demandData, aes(Date, Science_preCovidBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+
+# Create a model by preCovid and weekday
+mod <- lm(Science_East_Wing ~ preCOVID + Weekday, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday,preCOVID) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+grid
+
+ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Science_preCovidWday_Resids")
+
+ggplot(demandData, aes(Date, Science_preCovidWday_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Create a model by onbreak and weekday
+mod <- lm(Science_East_Wing ~ studentsOnBreak + Weekday, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday,studentsOnBreak) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+grid
+
+ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(studentsOnBreak)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Science_onBreakWday_Resids")
+
+ggplot(demandData, aes(Date, Science_onBreakWday_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+
+# Create a model by preCovid and weekday and onBreak
+mod <- lm(Science_East_Wing ~ preCOVID + Weekday + studentsOnBreak, data = demandData)
+
+
+summary(mod)
+
+grid = demandData %>%
+  data_grid(Weekday,preCOVID, studentsOnBreak) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+grid
+
+ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID), shape = factor(studentsOnBreak)), size = 4)
+
+demandData <- demandData %>%
+  add_residuals(mod, var="Science_all_Resids")
+
+ggplot(demandData, aes(Date, Science_all_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+
+```

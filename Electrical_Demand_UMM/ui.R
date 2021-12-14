@@ -35,15 +35,17 @@ shinyUI(fluidPage(
                         selected=FALSE),
         
             checkboxGroupInput("explanatory", "Choose up to three explanatory variables:",
-                               list("Dry_Bulb", "Wet_Bulb", "Humidity", "Dew_Point",
-                                    "Weekday", "Month", "preCOVID", "studentsOnBreak"))
+                               list("Dry_Bulb", "Wet_Bulb", "Humidity", "Dewpoint",
+                                    "Weekday", "Month", "preCOVID", "studentsOnBreak")),
+            
+            actionButton("generate", "Generate Graph")
             ),
 
         # Show a plot of the generated distribution
         mainPanel(
-            conditionalPanel("input.explanatory.length != 0",
-                             plotOutput("distPlot"))
-                
+            verbatimTextOutput("modelPrint"),
+            
+            plotOutput("distPlot")
         )
     )
 ))

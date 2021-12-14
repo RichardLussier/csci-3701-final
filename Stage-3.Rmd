@@ -35,10 +35,92 @@ colnames(demandData) <- buildingNames
 
 # Shift dates by one since we measured at midnight every day
 demandData$Date <- c(as.Date("7/31/2017", format = "%m/%d/%Y"), demandData$Date[-1400])
+```
 
 
-# Split into on break and not on break
 
+<h2>Reminder of Purpose of Project</h2>
+
+The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because Morris recently achieved net carbon neutrality in terms of energy consumption. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if and how much the University will need to increase their energy production in the near future.
+
+
+
+<h3>Technique</h3>
+
+To do so, we will be creating various linear regression models for the electrical demand of three buildings on campus:
+
+1. Behmler Hall, an admin building
+2. Pine Hall, a residence hall
+3. Science Building (East Wing), a classroom building
+
+These models will use the following as explanatory variables:
+
+1. Day of the Week
+2. Month
+3. Dry Bulb Temperature
+4. Before or After the Covid Pandemic started
+5. Whether students were on break or not
+
+We will look at these explanatory variables and attempt to find those that correlate the highest with each of the building's electrical demand.
+
+
+
+## Adding Explanatory Variables {.tabset}
+
+Several of our explanatory variables can be gotten from the date, so we add new columns to our data frame here.
+
+### Day of the Week
+
+First, we simply add a column that is simply the day of the week of the current date.
+
+```{r}
+# Add column for weekdays
+demandData = demandData %>%
+  mutate(Weekday = wday(Date, label = TRUE))
+
+```
+
+Looking at this new column it appears to be in the expected order and double checking, the 31st of July, 2017 was in fact a Monday.
+
+```{r}
+head(demandData$Weekday)
+```
+
+---
+
+### Month
+
+Simply extract the Month from the date and add it to a new column. We then once again look at the head of this new column to double check that it is behaving as expected.
+
+```{r}
+demandData <- demandData %>%
+  mutate(Month = month(Date, label = TRUE))
+
+head(demandData$Month)
+```
+
+---
+
+### Pre or Post Covid
+
+Adds a new column of booleans which are true if the date is before the 14th of March 2020, which was the last in person day of instruction before the start of the COVID-19 pandemic.
+
+```{r}
+
+demandData <- demandData %>%
+  mutate(preCOVID = Date < as.Date("2020/03/14", "%Y/%m/%d"))
+
+```
+
+---
+
+### Students On Break
+
+Adds a new column of booleans which are true if the students are on one of their three major breaks: Summer, Winter, or Spring break. Note: this also includes the extra long 2020 Summer/Spring break caused by Covid.
+
+```{r}
+
+# Function that determines whether students were on break or not for a given date, definitely not the best way to do it
 onBreak <- function(date) {
     if (date < as.Date("2017/08/23", "%Y/%m/%d")) {
       return(TRUE)
@@ -105,627 +187,594 @@ onBreak <- function(date) {
     }
 }
 
+#Create the column based on our function above
 demandData <- demandData %>%
   mutate(studentsOnBreak = sapply(Date, onBreak))
 
-demandData
+save(demandData, file="Modified_Elec_Demand.rdata")
 ```
 
+---
 
-<h3 color="red">Reminder of Purpose of Project</h3>
+## Building Models {.tabset}
 
-The purpose of this project is to predict future electricity demand for various UMM buildings through past data. We are interested in this project because Morris recently achieved net carbon neutrality in terms of energy consumption. In order to maintain this status, the University needs to be prepared for any and all future changes to power demand in its buildings. We hope to find trends in the electricity demand and use it to determine if and how much the University will need to increase their energy production in the near future.
+### Behmler Hall
 
-<h3 color="red">Behmler Hall</h3>
+Let's first extract Behmler's Electrical Demand data and the Explanatory Variables we hope to use into a new dataframe.
 
-<h4 color="red">By Weekday</h4>
 ```{r}
-# Add column for weekdays and graph Behmler's Demand
-demandData = demandData %>%
-  mutate(Weekday = wday(Date, label = TRUE))
+# Create new dataframe of only Behmler's Electrical Demand data and explanatory variables
 
-demandData
+behmlerData <- demandData[, c("Date", "Behmler_Hall", "Weekday", "Month", "preCOVID", "studentsOnBreak", "Dry_Bulb")]
 
-ggplot(demandData, aes(Weekday, Behmler_Hall)) +
-  geom_boxplot()
+behmlerData
+```
 
+---
 
+#### By Weekday
+
+First, we created a linear model of Behmler's Electrical Demand using Day of the Week as the explanatory variable.
+
+```{r}
 # Create a model by Weekday
-mod <- lm(Behmler_Hall ~ Weekday, data = demandData)
+mod <- lm(Behmler_Hall ~ Weekday, data = behmlerData)
 
+# Summary of the model
 summary(mod)
+```
 
-grid = demandData %>%
+Looking at the summary of the model, we see that the r<sup>2</sup> value is only about 0.16 which suggests that there isn't a particularly strong correlation between weekday and Behmler's Electrical Demand.
+The boxplots of the model seem to agree that there is a little bit of a difference in demand between weekdays and weekends.
+
+```{r}
+grid = behmlerData %>%
   data_grid(Weekday) %>%
   add_predictions(mod, "Behmler_Hall")
 
-ggplot(demandData, aes(Weekday, Behmler_Hall)) +
+ggplot(behmlerData, aes(Weekday, Behmler_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+Finally, if we plot the residuals we can see that there are definitely "chunks" of time where the model will overestimate the demand and "chunks" of time when it will underestimate.
+With that in mind, we decide to take a look at month as the explanatory variable since it is split into 12 bigger "chunks" of time, similar to what the residual plot suggests.
+
+```{r}
+behmlerData <- behmlerData %>%
   add_residuals(mod, var="Behmler_WDay_Resids")
 
-ggplot(demandData, aes(Date, Behmler_WDay_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_WDay_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
 
+---
+
 <h4 color="red">By Month</h4>
+
+Creating our model and looking at it's summary gives a (relatively) stronger r<sup>2</sup> value of 0.41
+
 ```{r}
-# Create a model by Month
-demandData <- demandData %>%
-  mutate(Month = month(Date, label = TRUE))
-
-demandData
-
-mod <- lm(formula = Behmler_Hall ~ Month, data = demandData)
+mod <- lm(formula = Behmler_Hall ~ Month, data = behmlerData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+Looking at the boxplots also seems to confirm: there appears to be a much larger electrical demand in the warmer spring and (even warmer) summer months.
+
+```{r}
+grid = behmlerData %>%
   data_grid(Month) %>%
   add_predictions(mod, "Behmler_Hall")
 
-ggplot(demandData, aes(Month, Behmler_Hall)) +
+ggplot(behmlerData, aes(Month, Behmler_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+Looking at the residuals, we don't have the same "chunking" of over and underestimates as we did before. However, for the last year and a halfish of data the model seems to be underestimating, which hints that COVID might have had some effect on electrical demand as well.
+
+```{r}
+behmlerData <- behmlerData %>%
   add_residuals(mod, var="Behmler_Month_Resids")
 
-ggplot(demandData, aes(Date, Behmler_Month_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_Month_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
 
+---
+
 <h4 color="red">By Dry Bulb Temp</h4>
+
+Before looking at COVID as an explanatory variable, we will first try Dry Bulb Temperature. Since electrical demand does seem to be higher in months that tend to be warmer, this might be a better explanatory variable.
 
 ```{r}
 # Model by Dry Bulb Temp
-ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
-  geom_point()
-
-dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb, data = demandData)
-dryBulbExpModel <- lm(log(Behmler_Hall) ~ Dry_Bulb, data = demandData)
+dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb, data = behmlerData)
 
 summary(dryBulbLinearModel)
-coefficients(dryBulbLinearModel)
+```
 
-summary(dryBulbExpModel)
-expModelCoeff <- coefficients(dryBulbExpModel)
-expModelCoeff
+However, looking at the r<sup>2</sup> value of our model seems to suggest Dry Bulb Temperature doesn't correlate nearly as strongly as the month does.
 
-bulbValues <- seq(-30, 90, 0.5)
-exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
-
-ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
+```{r}
+ggplot(behmlerData, aes(Dry_Bulb, Behmler_Hall)) +
   geom_point() +
   geom_smooth(method='lm', formula = y ~ x)
 
-demandData <- demandData %>%
+behmlerData <- behmlerData %>%
   add_residuals(dryBulbLinearModel, var="Behmler_DryBulb_Resids")
 
-ggplot(demandData, aes(Date, Behmler_DryBulb_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_DryBulb_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
-plot(demandData$Dry_Bulb, demandData$Behmler_Hall)
-lines(bulbValues, exponentialPredictions, col="red")
 ```
 
-<h4 color="red">By Summer</h4>
+Additionally, the dot plot appears to be curving upwards at the higher temperatures, so maybe an exponential model is more appropriate. Let's try that.
 
 ```{r}
-
-# Model only Summer
-
-summerData <- demandData %>%
-  filter(month(Date) %in% c(6, 7, 8))
-
-summerData
-
-# Create a model by Weekday
-mod <- lm(Behmler_Hall ~ Weekday, data = summerData)
-
-summary(mod)
-
-grid = summerData %>%
-  data_grid(Weekday) %>%
-  add_predictions(mod, "Behmler_Hall")
-
-ggplot(summerData, aes(Weekday, Behmler_Hall)) +
-  geom_boxplot() +
-  geom_point(data = grid, colour = "red", size = 4)
-
-summerData <- summerData %>%
-  add_residuals(mod, var="Behmler_WDay_Resids")
-
-ggplot(summerData, aes(Date, Behmler_WDay_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-
-# Model by Dry Bulb Temp
-ggplot(summerData, aes(Dry_Bulb, Behmler_Hall)) +
-  geom_point()
-
-dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb, data = summerData)
-dryBulbExpModel <- lm(log(Behmler_Hall) ~ Dry_Bulb, data = summerData)
-
-summary(dryBulbLinearModel)
-coefficients(dryBulbLinearModel)
+dryBulbExpModel <- lm(log(Behmler_Hall) ~ Dry_Bulb, data = behmlerData)
 
 summary(dryBulbExpModel)
-expModelCoeff <- coefficients(dryBulbExpModel)
-expModelCoeff
+```
 
+The r<sup>2</sup> value for this model isn't that much different than that of the linear one (in fact it's a little worse), so an exponential model isn't a whole lot better. Looking at the plot of the exponential model, we can actually visually confirm that the line of best fit it creates is almost linear.
+
+```{r}
 bulbValues <- seq(-30, 90, 0.5)
 exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
 
-ggplot(summerData, aes(Dry_Bulb, Behmler_Hall)) +
-  geom_point() +
-  geom_smooth(method='lm', formula = y ~ x)
-
-plot(summerData$Dry_Bulb, summerData$Behmler_Hall)
+plot(behmlerData$Dry_Bulb, behmlerData$Behmler_Hall)
 lines(bulbValues, exponentialPredictions, col="red")
-
 ```
+
+---
 
 <h4 color="red">By Covid</h4>
 
+Next we will look at the data using whether the date was before COVID started or after.
+
 ```{r}
-
-# Split into pre and post Covid
-
-demandData <- demandData %>%
-  mutate(preCOVID = Date < as.Date("2020/03/14", "%Y/%m/%d"))
-
-demandData
-
 # Create a model by preCovid
-mod <- lm(Behmler_Hall ~ preCOVID, data = demandData)
+mod <- lm(Behmler_Hall ~ preCOVID, data = behmlerData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+Interestingly enough, there doesn't really seem to be a correlation between before or after COVID and the electricity demand of Behmler (which can be seen by a super small r<sup>2</sup>). 
+
+```{r}
+grid = behmlerData %>%
   data_grid(preCOVID) %>%
   add_predictions(mod, "Behmler_Hall")
 
-ggplot(demandData, aes(preCOVID, Behmler_Hall)) +
+ggplot(behmlerData, aes(preCOVID, Behmler_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+The boxplots seem to suggest a similar pattern, though interestingly enough, there were a lot less days after COVID started where electrical demand was low.
+
+The residual graph for our model shows the same signs of "chunking" as the weekday residuals did too.
+
+```{r}
+behmlerData <- behmlerData %>%
   add_residuals(mod, var="Behmler_preCovid_Resids")
 
-ggplot(demandData, aes(Date, Behmler_preCovid_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_preCovid_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
-
-# Create a model by preCovid and Month
-mod <- lm(Behmler_Hall ~ preCOVID + Month, data = demandData)
-
-
-summary(mod)
-
-grid = demandData %>%
-  data_grid(Month,preCOVID) %>%
-  add_predictions(mod, "Behmler_Hall")
-
-grid
-
-ggplot(demandData, aes(Month, Behmler_Hall)) +
-  geom_boxplot() +
-  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
-
-demandData <- demandData %>%
-  add_residuals(mod, var="Behmler_preCovidMonth_Resids")
-
-ggplot(demandData, aes(Date, Behmler_preCovidMonth_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-
-```
-```{r}
-
-# Model by Dry Bulb Temp
-ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
-  geom_point(aes(colour = factor(preCOVID)))
-
-# dryBulbLinearModel <- lm(Behmler_Hall ~ Dry_Bulb + preCOVID, data = demandData)
-# 
-# summary(dryBulbLinearModel)
-# coefficients(dryBulbLinearModel)
-# 
-# summary(dryBulbExpModel)
-# expModelCoeff <- coefficients(dryBulbExpModel)
-# expModelCoeff
-# 
-# bulbValues <- seq(-30, 90, 0.5)
-# exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
-# 
-# ggplot(demandData, aes(Dry_Bulb, Behmler_Hall)) +
-#   geom_point() +
-#   geom_smooth(method='lm', formula = y ~ x)
-# 
-# demandData <- demandData %>%
-#   add_residuals(dryBulbLinearModel, var="Behmler_DryBulb_Resids")
-# 
-# ggplot(demandData, aes(Date, Behmler_DryBulb_Resids)) + 
-#   geom_ref_line(h=0) + 
-#   geom_line()
-
 ```
 
+Because this chunking still occurs when splitting by COVID status, we will later attempt a model with two explanatory variables: Month and COVID status.
+
+---
 
 <h4 color="red">By If Students are On Campus</h4>
 
-```{r}
+Our final single-variable model will be using whether or not students were on break.
 
+```{r}
 # Create a model by studentsOnBreak
-mod <- lm(Behmler_Hall ~ studentsOnBreak, data = demandData)
+mod <- lm(Behmler_Hall ~ studentsOnBreak, data = behmlerData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+Much like COVID, whether or not students are on break gives a very small r<sup>2</sup> value, which indicates that there isn't a particularly strong correlation.
+
+```{r}
+grid = behmlerData %>%
   data_grid(studentsOnBreak) %>%
   add_predictions(mod, "Behmler_Hall")
 
-ggplot(demandData, aes(studentsOnBreak, Behmler_Hall)) +
+ggplot(behmlerData, aes(studentsOnBreak, Behmler_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+The box plots tell a similar story with the medians being nearly the same. Additionally, the residuals still have the "chunking" that we noticed with several of the other residual plots.
+
+```{r}
+behmlerData <- behmlerData %>%
   add_residuals(mod, var="Behmler_onBreak_Resids")
 
-ggplot(demandData, aes(Date, Behmler_onBreak_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_onBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
+```
 
+---
 
+<h4 color="red">Multiple Explanatory Variables</h4>
 
-# Create a model by preCovid and onBreak
-mod <- lm(Behmler_Hall ~ preCOVID + studentsOnBreak, data = demandData)
+Since no single explanatory variable had a particularly large correlation, we will create some models using multiple explanatory variables in order to find ones with a higher correlation.
 
+---
+
+<h5>Month and COVID status</h5>
+
+To start, we will look at both Month and COVID status at once. The model using just COVID had some of the "chunking" in the residual plot, while the model with just Months was underestimating the dates after COVID started. So we hope that these two combined might make up for the flaws in the previous models.
+
+```{r}
+# Create a model by preCovid and Month
+mod <- lm(Behmler_Hall ~ preCOVID + Month, data = behmlerData)
 
 summary(mod)
+```
 
-grid = demandData %>%
-  data_grid(studentsOnBreak,preCOVID) %>%
+Doing so does give a somewhat stronger r<sup>2</sup> value of 0.46. And the residual plot below does improve on the problems with the individual plots. However, all things considered, there does not seem to be that much stronger of a correlation than with just the Month.
+
+```{r}
+grid = behmlerData %>%
+  data_grid(Month,preCOVID) %>%
   add_predictions(mod, "Behmler_Hall")
 
-grid
-
-ggplot(demandData, aes(studentsOnBreak, Behmler_Hall)) +
+ggplot(behmlerData, aes(Month, Behmler_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
 
-demandData <- demandData %>%
-  add_residuals(mod, var="Behmler_preCovidBreak_Resids")
+behmlerData <- behmlerData %>%
+  add_residuals(mod, var="Behmler_preCovidMonth_Resids")
 
-ggplot(demandData, aes(Date, Behmler_preCovidBreak_Resids)) + 
+ggplot(behmlerData, aes(Date, Behmler_preCovidMonth_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
 ```
 
-<h3 color="red">Pine Hall</h3>
+---
 
-<h4 color="red">By Weekday</h4>
+<h5>Month and Weekday</h5>
+
+Now we will make a model using the Month and the day of the week as Explanatory variables. These two had the strongest correlation individually, so perhaps combining them will create an even better model.
+
 ```{r}
-# Add column for weekdays and graph Pine's Demand
-ggplot(demandData, aes(Weekday, Pine_Hall)) +
-  geom_boxplot()
-
-
-# Create a model by Weekday
-mod <- lm(Pine_Hall ~ Weekday, data = demandData)
+# Create a model by Weekday and Month
+mod <- lm(Behmler_Hall ~ Weekday + Month, data = behmlerData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+This combined model has an r<sup>2</sup> of 0.57 which is the strongest we've seen. This indicates that the Month and the Day of the week are likely the two variables with the highest correlation for electrical demand of Behmler Hall.
+
+```{r}
+grid = behmlerData %>%
+  data_grid(Month,Weekday) %>%
+  add_predictions(mod, "Behmler_Hall")
+
+ggplot(behmlerData, aes(Month, Behmler_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(Weekday)), size = 4)
+
+behmlerData <- behmlerData %>%
+  add_residuals(mod, var="Behmler_MonthWday_Resids")
+
+ggplot(behmlerData, aes(Date, Behmler_MonthWday_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+And the residual plot for this model looks pretty great (though it does have some underestimation in the last couple of months).
+
+---
+
+### Pine Hall
+
+Let's first extract Behmler's Electrical Demand data and the Explanatory Variables we hope to use into a new dataframe.
+
+```{r}
+# Create new dataframe of only Pine's Electrical Demand data and explanatory variables
+
+pineData <- demandData[, c("Date", "Pine_Hall", "Weekday", "Month", "preCOVID", "studentsOnBreak", "Dry_Bulb")]
+
+pineData
+```
+
+<h4 color="red">By Weekday</h4>
+
+Similar to with Behmler, we will start with creating a model by day of the week.
+
+```{r}
+# Create a model by Weekday
+mod <- lm(Pine_Hall ~ Weekday, data = pineData)
+
+summary(mod)
+```
+
+This model has an absolutely terrible r<sup>2</sup> value, indicating there is no real correlation between day of the week and electrical demand. This does make sense, since students will still be living in the dorm and using electricity during the weekend.
+
+```{r}
+grid = pineData %>%
   data_grid(Weekday) %>%
   add_predictions(mod, "Pine_Hall")
 
-ggplot(demandData, aes(Weekday, Pine_Hall)) +
+ggplot(pineData, aes(Weekday, Pine_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+The box plot confirms this, where all plots are nearly identical.
+
+Looking at the residual plot, there appear to be "chunks" of time where the model is underestimating and "chunks" where it's overestimating, indicating there might be another, better explanatory variable.
+
+```{r}
+pineData <- pineData %>%
   add_residuals(mod, var="Pine_WDay_Resids")
 
-ggplot(demandData, aes(Date, Pine_WDay_Resids)) + 
+ggplot(pineData, aes(Date, Pine_WDay_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
 
+---
+
 <h4 color="red">By Month</h4>
+
+This alternate explanatory variable might be the month, so we construct a model based on month.
+
 ```{r}
 # Create a model by Month
-
-mod <- lm(formula = Pine_Hall ~ Month, data = demandData)
+mod <- lm(formula = Pine_Hall ~ Month, data = pineData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+This model has an r<sup>2</sup> of 0.25 which is decent, but doesn't indicate a super big correlation.
+
+```{r}
+grid = pineData %>%
   data_grid(Month) %>%
   add_predictions(mod, "Pine_Hall")
 
-ggplot(demandData, aes(Month, Pine_Hall)) +
+ggplot(pineData, aes(Month, Pine_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+The residual still has some of the "chunking" mentioned above, so Month might not be the explanatory variable causing this.
+
+```{r}
+pineData <- pineData %>%
   add_residuals(mod, var="Pine_Month_Resids")
 
-ggplot(demandData, aes(Date, Pine_Month_Resids)) + 
+ggplot(pineData, aes(Date, Pine_Month_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
+
+---
 
 <h4 color="red">By Dry Bulb Temp</h4>
 
-```{r}
-# Model by Dry Bulb Temp
-ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
-  geom_point()
+Next, we will see if dry bulb temperature is a good indicator of electrical demand.
 
-dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb, data = demandData)
-dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = demandData)
+```{r}
+dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb, data = pineData)
 
 summary(dryBulbLinearModel)
-coefficients(dryBulbLinearModel)
+```
 
-summary(dryBulbExpModel)
-expModelCoeff <- coefficients(dryBulbExpModel)
-expModelCoeff
+This model has a very small r<sup>2</sup> value, indicating no real correlation between dry bulb temperature and Pine's electrical demand. Looking at the plot confirms this with no real pattern to be seen in the points.
 
-bulbValues <- seq(-30, 90, 0.5)
-exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
-
-ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
+```{r}
+ggplot(pineData, aes(Dry_Bulb, Pine_Hall)) +
   geom_point() +
   geom_smooth(method='lm', formula = y ~ x)
 
-demandData <- demandData %>%
+pineData <- pineData %>%
   add_residuals(dryBulbLinearModel, var="Pine_DryBulb_Resids")
 
-ggplot(demandData, aes(Date, Pine_DryBulb_Resids)) + 
+ggplot(pineData, aes(Date, Pine_DryBulb_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
-plot(demandData$Dry_Bulb, demandData$Pine_Hall)
-lines(bulbValues, exponentialPredictions, col="red")
 ```
 
-<h4 color="red">By Summer</h4>
-
-```{r}
-
-# Model only Summer
-
-summerData <- demandData %>%
-  filter(month(Date) %in% c(6, 7, 8))
-
-summerData
-
-# Create a model by Weekday
-mod <- lm(Pine_Hall ~ Weekday, data = summerData)
-
-summary(mod)
-
-grid = summerData %>%
-  data_grid(Weekday) %>%
-  add_predictions(mod, "Pine_Hall")
-
-ggplot(summerData, aes(Weekday, Pine_Hall)) +
-  geom_boxplot() +
-  geom_point(data = grid, colour = "red", size = 4)
-
-summerData <- summerData %>%
-  add_residuals(mod, var="Pine_WDay_Resids")
-
-ggplot(summerData, aes(Date, Pine_WDay_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-
-# Model by Dry Bulb Temp
-ggplot(summerData, aes(Dry_Bulb, Pine_Hall)) +
-  geom_point()
-
-dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb, data = summerData)
-dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = summerData)
-
-summary(dryBulbLinearModel)
-coefficients(dryBulbLinearModel)
-
-summary(dryBulbExpModel)
-expModelCoeff <- coefficients(dryBulbExpModel)
-expModelCoeff
-
-bulbValues <- seq(-30, 90, 0.5)
-exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
-
-ggplot(summerData, aes(Dry_Bulb, Pine_Hall)) +
-  geom_point() +
-  geom_smooth(method='lm', formula = y ~ x)
-
-plot(summerData$Dry_Bulb, summerData$Pine_Hall)
-lines(bulbValues, exponentialPredictions, col="red")
-
-```
-
+---
 
 <h4 color="red">By Covid</h4>
 
-```{r}
+Next, we will check whether the dates were before or after COVID as an explanatory variable.
 
+```{r}
 # Create a model by preCovid
-mod <- lm(Pine_Hall ~ preCOVID, data = demandData)
+mod <- lm(Pine_Hall ~ preCOVID, data = pineData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+Our model has an r<sup>2</sup> of 0.24, which is very similar to that of our model based on month and indicates a decent correlation.
+
+```{r}
+grid = pineData %>%
   data_grid(preCOVID) %>%
   add_predictions(mod, "Pine_Hall")
 
-ggplot(demandData, aes(preCOVID, Pine_Hall)) +
+ggplot(pineData, aes(preCOVID, Pine_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+The box plots indicate that there is some form of correlation, with a noticeably lower electrical demand after COVID occurred as opposed to before. Additionally, the residual plot is similar to the other residuals where there are some "chunks" of time in which the model over or underestimates.
+
+```{r}
+pineData <- pineData %>%
   add_residuals(mod, var="Pine_preCovid_Resids")
 
-ggplot(demandData, aes(Date, Pine_preCovid_Resids)) + 
+ggplot(pineData, aes(Date, Pine_preCovid_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
-
-# Create a model by preCovid and Month
-mod <- lm(Pine_Hall ~ preCOVID + Month, data = demandData)
-
-
-summary(mod)
-
-grid = demandData %>%
-  data_grid(Month,preCOVID) %>%
-  add_predictions(mod, "Pine_Hall")
-
-grid
-
-ggplot(demandData, aes(Month, Pine_Hall)) +
-  geom_boxplot() +
-  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
-
-demandData <- demandData %>%
-  add_residuals(mod, var="Pine_preCovidMonth_Resids")
-
-ggplot(demandData, aes(Date, Pine_preCovidMonth_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-
-```
-```{r}
-
-# Model by Dry Bulb Temp
-ggplot(demandData, aes(Dry_Bulb, Pine_Hall)) +
-  geom_point(aes(colour = factor(preCOVID)))
-
-dryBulbLinearModel <- lm(Pine_Hall ~ Dry_Bulb + preCOVID, data = demandData)
-# dryBulbExpModel <- lm(log(Pine_Hall) ~ Dry_Bulb, data = demandData)
-
-summary(dryBulbLinearModel)
-coefficients(dryBulbLinearModel)
-
-# summary(dryBulbExpModel)
-# expModelCoeff <- coefficients(dryBulbExpModel)
-# expModelCoeff
-# 
-# bulbValues <- seq(-30, 90, 0.5)
-# exponentialPredictions <- exp(predict(dryBulbExpModel, list(Dry_Bulb = bulbValues)))
-
-ggplot(demandData, aes(Dry_Bulb, Pine_Hall, colour = factor(preCOVID))) +
-  geom_point() +
-  geom_smooth(method='lm', aes(group = preCOVID), formula = y ~ x)
-
-demandData <- demandData %>%
-  add_residuals(dryBulbLinearModel, var="Pine_preCovidDryBulb_Resids")
-
-ggplot(demandData, aes(Date, Pine_preCovidDryBulb_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-# plot(demandData$Dry_Bulb, demandData$Pine_Hall)
-# lines(bulbValues, exponentialPredictions, col="red")
-
 ```
 
+---
 
 <h4 color="red">By If Students are On Campus</h4>
 
-```{r}
+This "chunking" in our residuals for the month and COVID models might be explained as periods during which the students are on or off campus. So we will create a model using this as our explanatory variable.
 
+```{r}
 # Create a model by studentsOnBreak
-mod <- lm(Pine_Hall ~ studentsOnBreak, data = demandData)
+mod <- lm(Pine_Hall ~ studentsOnBreak, data = pineData)
 
 summary(mod)
+```
 
-grid = demandData %>%
+This model has the strongest r<sup>2</sup> of the models we've looked at yet! Our box plots reinforce this with a very visible difference.
+
+```{r}
+grid = pineData %>%
   data_grid(studentsOnBreak) %>%
   add_predictions(mod, "Pine_Hall")
 
-ggplot(demandData, aes(studentsOnBreak, Pine_Hall)) +
+ggplot(pineData, aes(studentsOnBreak, Pine_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-demandData <- demandData %>%
+Unfortunately, looking at the residual graph, our "chunking" problem still exists. Additionally, the model appears to underestimate before COVID values and overestimate post-COVID values. Looking at both COVID and whether or not students are on break might be a good idea.
+
+```{r}
+pineData <- pineData %>%
   add_residuals(mod, var="Pine_onBreak_Resids")
 
-ggplot(demandData, aes(Date, Pine_onBreak_Resids)) + 
+ggplot(pineData, aes(Date, Pine_onBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
+```
 
+---
 
+<h4>Multiple Explanatory Variables</h4>
 
-# Create a model by preCovid and onBreak
-mod <- lm(Pine_Hall ~ preCOVID + studentsOnBreak, data = demandData)
+Since no single explanatory variable had a particularly large correlation, we will create some models using multiple explanatory variables in order to find ones with a higher correlation.
 
+---
+
+<h5>COVID and Month</h5>
+
+Our individual models for month and COVID status were both pretty strong, so we will create a model using both of them.
+
+```{r}
+# Create a model by preCovid and Month
+mod <- lm(Pine_Hall ~ preCOVID + Month, data = pineData)
 
 summary(mod)
+```
 
-grid = demandData %>%
-  data_grid(studentsOnBreak,preCOVID) %>%
+This gives a pretty strong r<sup>2</sup> of 0.46, indicating that these two variables together have a fairly strong correlation to Pine's electrical demand.
+
+```{r}
+grid = pineData %>%
+  data_grid(Month,preCOVID) %>%
   add_predictions(mod, "Pine_Hall")
 
-grid
-
-ggplot(demandData, aes(studentsOnBreak, Pine_Hall)) +
+ggplot(pineData, aes(Month, Pine_Hall)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
 
-demandData <- demandData %>%
-  add_residuals(mod, var="Pine_preCovidBreak_Resids")
+pineData <- pineData %>%
+  add_residuals(mod, var="Pine_preCovidMonth_Resids")
 
-ggplot(demandData, aes(Date, Pine_preCovidBreak_Resids)) + 
+ggplot(pineData, aes(Date, Pine_preCovidMonth_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
 ```
 
+---
 
+<h5>COVID and Students are on break</h5>
 
+Finally, we will look at both whether students are on break or not and whether the date was before or after COVID started.
 
-<h3 color="red">Imholte</h3>
+```{r}
+# Create a model by preCovid and onBreak
+mod <- lm(Pine_Hall ~ preCOVID + studentsOnBreak, data = pineData)
+
+summary(mod)
+```
+
+This model has an r<sup>2</sup> of 0.54 which is the strongest we've seen yet. Also, looking at the residual plot, it looks a lot more centered at the 0 axis, though there is definitely still some "chunking" occurring.
+
+```{r}
+grid = pineData %>%
+  data_grid(studentsOnBreak,preCOVID) %>%
+  add_predictions(mod, "Pine_Hall")
+
+ggplot(pineData, aes(studentsOnBreak, Pine_Hall)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+
+pineData <- pineData %>%
+  add_residuals(mod, var="Pine_preCovidBreak_Resids")
+
+ggplot(pineData, aes(Date, Pine_preCovidBreak_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+---
+
+### Imholte
+
+Let's first extract Imholte's Electrical Demand data and the Explanatory Variables we hope to use into a new dataframe.
+
+```{r}
+# Create new dataframe of only Imholte's Electrical Demand data and explanatory variables
+
+imholteData <- demandData[, c("Date", "Science_East_Wing", "Weekday", "Month", "preCOVID", "studentsOnBreak", "Dry_Bulb")]
+
+imholteData
+```
+
+---
 
 <h4 color="red">By Weekday</h4>
+
 ```{r}
 # Add column for weekdays and graph Imholte's Demand
-ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot()
 
 
 # Create a model by Weekday
-mod <- lm(Science_East_Wing ~ Weekday, data = demandData)
+mod <- lm(Science_East_Wing ~ Weekday, data = imholteData)
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(Weekday) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Imholte_WDay_Resids")
 
-ggplot(demandData, aes(Date, Imholte_WDay_Resids)) + 
+ggplot(imholteData, aes(Date, Imholte_WDay_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
@@ -734,22 +783,22 @@ ggplot(demandData, aes(Date, Imholte_WDay_Resids)) +
 ```{r}
 # Create a model by Month
 
-mod <- lm(formula = Science_East_Wing ~ Month, data = demandData)
+mod <- lm(formula = Science_East_Wing ~ Month, data = imholteData)
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(Month) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(demandData, aes(Month, Science_East_Wing)) +
+ggplot(imholteData, aes(Month, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Imholte_Month_Resids")
 
-ggplot(demandData, aes(Date, Imholte_Month_Resids)) +
+ggplot(imholteData, aes(Date, Imholte_Month_Resids)) +
   geom_ref_line(h=0) +
   geom_line()
 ```
@@ -759,22 +808,22 @@ ggplot(demandData, aes(Date, Imholte_Month_Resids)) +
 ```{r}
 
 # Create a model by preCovid
-mod <- lm(Science_East_Wing ~ preCOVID, data = demandData)
+mod <- lm(Science_East_Wing ~ preCOVID, data = imholteData)
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(preCOVID) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(demandData, aes(preCOVID, Science_East_Wing)) +
+ggplot(imholteData, aes(preCOVID, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Imholte_preCovid_Resids")
 
-ggplot(demandData, aes(Date, Imholte_preCovid_Resids)) + 
+ggplot(imholteData, aes(Date, Imholte_preCovid_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
@@ -786,22 +835,22 @@ ggplot(demandData, aes(Date, Imholte_preCovid_Resids)) +
 ```{r}
 
 # Create a model by studentsOnBreak
-mod <- lm(Science_East_Wing ~ studentsOnBreak, data = demandData)
+mod <- lm(Science_East_Wing ~ studentsOnBreak, data = imholteData)
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(studentsOnBreak) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(demandData, aes(studentsOnBreak, Science_East_Wing)) +
+ggplot(imholteData, aes(studentsOnBreak, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Imholte_onBreak_Resids")
 
-ggplot(demandData, aes(Date, Imholte_onBreak_Resids)) + 
+ggplot(imholteData, aes(Date, Imholte_onBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
@@ -811,98 +860,98 @@ ggplot(demandData, aes(Date, Imholte_onBreak_Resids)) +
 
 
 # Create a model by preCovid and onBreak
-mod <- lm(Science_East_Wing ~ preCOVID + studentsOnBreak, data = demandData)
+mod <- lm(Science_East_Wing ~ preCOVID + studentsOnBreak, data = imholteData)
 
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(studentsOnBreak,preCOVID) %>%
   add_predictions(mod, "Science_East_Wing")
 
 grid
 
-ggplot(demandData, aes(studentsOnBreak, Science_East_Wing)) +
+ggplot(imholteData, aes(studentsOnBreak, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Science_preCovidBreak_Resids")
 
-ggplot(demandData, aes(Date, Science_preCovidBreak_Resids)) + 
+ggplot(imholteData, aes(Date, Science_preCovidBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
 
 
 # Create a model by preCovid and weekday
-mod <- lm(Science_East_Wing ~ preCOVID + Weekday, data = demandData)
+mod <- lm(Science_East_Wing ~ preCOVID + Weekday, data = imholteData)
 
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(Weekday,preCOVID) %>%
   add_predictions(mod, "Science_East_Wing")
 
 grid
 
-ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Science_preCovidWday_Resids")
 
-ggplot(demandData, aes(Date, Science_preCovidWday_Resids)) + 
+ggplot(imholteData, aes(Date, Science_preCovidWday_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
 
 # Create a model by onbreak and weekday
-mod <- lm(Science_East_Wing ~ studentsOnBreak + Weekday, data = demandData)
+mod <- lm(Science_East_Wing ~ studentsOnBreak + Weekday, data = imholteData)
 
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(Weekday,studentsOnBreak) %>%
   add_predictions(mod, "Science_East_Wing")
 
 grid
 
-ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(studentsOnBreak)), size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Science_onBreakWday_Resids")
 
-ggplot(demandData, aes(Date, Science_onBreakWday_Resids)) + 
+ggplot(imholteData, aes(Date, Science_onBreakWday_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
 
 # Create a model by preCovid and weekday and onBreak
-mod <- lm(Science_East_Wing ~ preCOVID + Weekday + studentsOnBreak, data = demandData)
+mod <- lm(Science_East_Wing ~ preCOVID + Weekday + studentsOnBreak, data = imholteData)
 
 
 summary(mod)
 
-grid = demandData %>%
+grid = imholteData %>%
   data_grid(Weekday,preCOVID, studentsOnBreak) %>%
   add_predictions(mod, "Science_East_Wing")
 
 grid
 
-ggplot(demandData, aes(Weekday, Science_East_Wing)) +
+ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID), shape = factor(studentsOnBreak)), size = 4)
 
-demandData <- demandData %>%
+imholteData <- imholteData %>%
   add_residuals(mod, var="Science_all_Resids")
 
-ggplot(demandData, aes(Date, Science_all_Resids)) + 
+ggplot(imholteData, aes(Date, Science_all_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 

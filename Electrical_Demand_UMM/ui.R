@@ -45,7 +45,9 @@ shinyUI(fluidPage(
         mainPanel(
             verbatimTextOutput("modelPrint"),
             
-            plotOutput("distPlot")
+            plotOutput("distPlot"),
+            
+            plotOutput("residualPlot")
         )
     )
 ))

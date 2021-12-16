@@ -9,7 +9,6 @@ output:
 ---
 
 
-
 ```{r setup, include=FALSE}
 ## Libraries we need
 library(ggplot2)
@@ -45,7 +44,7 @@ The purpose of this project is to predict future electricity demand for various 
 
 
 
-<h3>Technique</h3>
+<h2>Technique</h2>
 
 To do so, we will be creating various linear regression models for the electrical demand of three buildings on campus:
 
@@ -736,223 +735,280 @@ ggplot(pineData, aes(Date, Pine_preCovidBreak_Resids)) +
 
 ---
 
-### Imholte
+### Science Building (East Wing)
 
-Let's first extract Imholte's Electrical Demand data and the Explanatory Variables we hope to use into a new dataframe.
+Let's first extract the Science Building's Electrical Demand data and the Explanatory Variables we hope to use into a new data frame. (Note: we're only using data for the East Wing. The West Wing is missing a couple years worth of data so we decided not to use it.)
 
 ```{r}
-# Create new dataframe of only Imholte's Electrical Demand data and explanatory variables
+# Create new dataframe of only the Science Building's Electrical Demand data and explanatory variables
 
-imholteData <- demandData[, c("Date", "Science_East_Wing", "Weekday", "Month", "preCOVID", "studentsOnBreak", "Dry_Bulb")]
+scienceData <- demandData[, c("Date", "Science_East_Wing", "Weekday", "Month", "preCOVID", "studentsOnBreak", "Dry_Bulb")]
 
-imholteData
+scienceData
 ```
 
 ---
 
 <h4 color="red">By Weekday</h4>
 
+Once again, lets start by looking at a model using Weekday as the explanatory variable. 
+
 ```{r}
-# Add column for weekdays and graph Imholte's Demand
-ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
-  geom_boxplot()
-
-
 # Create a model by Weekday
-mod <- lm(Science_East_Wing ~ Weekday, data = imholteData)
+mod <- lm(Science_East_Wing ~ Weekday, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+This model has an r<sup>2</sup> of 0.25 which indicates a decent correlation.
+
+```{r}
+grid = scienceData %>%
   data_grid(Weekday) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
+ggplot(scienceData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Imholte_WDay_Resids")
+The residual plot once again seems to have "chunks" of time where the model will underestimate and "chunks" where it will overestimate the demand.
 
-ggplot(imholteData, aes(Date, Imholte_WDay_Resids)) + 
+```{r}
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_WDay_Resids")
+
+ggplot(scienceData, aes(Date, Science_WDay_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 ```
 
+---
+
 <h4 color="red">By Month</h4>
+
+Perhaps Month is the cause of this? Let's create a model using the month of the year as the explanatory variable.
+
 ```{r}
 # Create a model by Month
 
-mod <- lm(formula = Science_East_Wing ~ Month, data = imholteData)
+mod <- lm(formula = Science_East_Wing ~ Month, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+This model has an r<sup>2</sup> of 0.2 which is ok, but weaker than the Weekday model.
+
+```{r}
+grid = scienceData %>%
   data_grid(Month) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(imholteData, aes(Month, Science_East_Wing)) +
+ggplot(scienceData, aes(Month, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Imholte_Month_Resids")
+The residual plot also has less "chunking" than the weekday did especially between 2018 and 2019. However, there is still a bit, most noticable after 2020.
 
-ggplot(imholteData, aes(Date, Imholte_Month_Resids)) +
+```{r}
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_Month_Resids")
+
+ggplot(scienceData, aes(Date, Science_Month_Resids)) +
   geom_ref_line(h=0) +
   geom_line()
 ```
 
+---
+
 <h4 color="red">By Covid</h4>
+
+This difference between the residual before and after 2020 might be due to COVID, so let's use that as an explanatory variable. Unfortunately, as the previous model's residual plot shows, all the data from mid 2020 to mid 2021 appears to be missing, which might skew the results of using COVID as an explanatory variable.
 
 ```{r}
 
 # Create a model by preCovid
-mod <- lm(Science_East_Wing ~ preCOVID, data = imholteData)
+mod <- lm(Science_East_Wing ~ preCOVID, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+The COVID model has an r<sup>2</sup> of 0.35 which is bigger than the other two models, indicating a stronger correlation.
+
+```{r}
+grid = scienceData %>%
   data_grid(preCOVID) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(imholteData, aes(preCOVID, Science_East_Wing)) +
+ggplot(scienceData, aes(preCOVID, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Imholte_preCovid_Resids")
+The residual plot still has some "chunking" and underestimates the energy usage of the building, especially towards the end of the data, after the sensor starts working again.
 
-ggplot(imholteData, aes(Date, Imholte_preCovid_Resids)) + 
+```{r}
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_preCovid_Resids")
+
+ggplot(scienceData, aes(Date, Science_preCovid_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
 ```
 
+---
 
 <h4 color="red">By If Students are On Campus</h4>
 
-```{r}
+Finally, we'll look at whether or not students are on break as a possible explanatory variable.
 
+```{r}
 # Create a model by studentsOnBreak
-mod <- lm(Science_East_Wing ~ studentsOnBreak, data = imholteData)
+mod <- lm(Science_East_Wing ~ studentsOnBreak, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+With an r<sup>2</sup> of 0.23 this model indicates there isn't a huge correlation between students being on break and the electrical demand of the science building, though it is a little stronger than the month.
+
+```{r}
+grid = scienceData %>%
   data_grid(studentsOnBreak) %>%
   add_predictions(mod, "Science_East_Wing")
 
-ggplot(imholteData, aes(studentsOnBreak, Science_East_Wing)) +
+ggplot(scienceData, aes(studentsOnBreak, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, colour = "red", size = 4)
+```
 
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Imholte_onBreak_Resids")
+Once again, the residual plots have "chunks" where the model consistently over/underestimates.
 
-ggplot(imholteData, aes(Date, Imholte_onBreak_Resids)) + 
+```{r}
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_onBreak_Resids")
+
+ggplot(scienceData, aes(Date, Science_onBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
 
 ```
 
+---
+
+<h4>Multiple Explanatory Variables</h4>
+
+After that, let's take a look at multiple explanatory variables to see if we can get any models with stronger correlations than others.
+
+---
+
+<h5>Pre COVID and Weekday</h5>
+
+To start, let's look at our two strongest variables, based on the single-variable models, namely COVID status and day of the week.
+
 ```{r}
-
-
-# Create a model by preCovid and onBreak
-mod <- lm(Science_East_Wing ~ preCOVID + studentsOnBreak, data = imholteData)
-
-
-summary(mod)
-
-grid = imholteData %>%
-  data_grid(studentsOnBreak,preCOVID) %>%
-  add_predictions(mod, "Science_East_Wing")
-
-grid
-
-ggplot(imholteData, aes(studentsOnBreak, Science_East_Wing)) +
-  geom_boxplot() +
-  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
-
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Science_preCovidBreak_Resids")
-
-ggplot(imholteData, aes(Date, Science_preCovidBreak_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
-
-
 # Create a model by preCovid and weekday
-mod <- lm(Science_East_Wing ~ preCOVID + Weekday, data = imholteData)
-
+mod <- lm(Science_East_Wing ~ preCOVID + Weekday, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+This model has an r<sup>2</sup> of 0.61 which indicates a very strong correlation between both COVID status and day of the week!
+
+```{r}
+grid = scienceData %>%
   data_grid(Weekday,preCOVID) %>%
   add_predictions(mod, "Science_East_Wing")
 
-grid
+ggplot(scienceData, aes(Weekday, Science_East_Wing)) +
+  geom_boxplot() +
+  geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
+```
 
-ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
+The residual plot looks pretty similar to that of just the weekday model, though the model prediction for 2020 and 2021 is a bit more accurate.
+
+```{r}
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_preCovidWday_Resids")
+
+ggplot(scienceData, aes(Date, Science_preCovidWday_Resids)) + 
+  geom_ref_line(h=0) + 
+  geom_line()
+```
+
+---
+
+<h5>COVID Status and Students on Break</h5>
+
+Now, we'll take a look at COVID status together with whether or not students are on break, to see if the two create a stronger correlation together than the previous model.
+
+```{r}
+# Create a model by preCovid and onBreak
+mod <- lm(Science_East_Wing ~ preCOVID + studentsOnBreak, data = scienceData)
+
+summary(mod)
+```
+
+This model has an r<sup>2</sup> of 0.41 which is a bit better than the single-variable models on their own, but not by a whole lot and certainly not better than our previous model.
+
+```{r}
+grid = scienceData %>%
+  data_grid(studentsOnBreak,preCOVID) %>%
+  add_predictions(mod, "Science_East_Wing")
+
+ggplot(scienceData, aes(studentsOnBreak, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(preCOVID)), size = 4)
 
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Science_preCovidWday_Resids")
+scienceData <- scienceData %>%
+  add_residuals(mod, var="Science_preCovidBreak_Resids")
 
-ggplot(imholteData, aes(Date, Science_preCovidWday_Resids)) + 
+ggplot(scienceData, aes(Date, Science_preCovidBreak_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
+```
 
+---
 
+<h5>Students on Break and Weekday</h5>
+
+Finally, we will create a model using whether or not the students are on break and the day of the week.
+
+```{r}
 # Create a model by onbreak and weekday
-mod <- lm(Science_East_Wing ~ studentsOnBreak + Weekday, data = imholteData)
-
+mod <- lm(Science_East_Wing ~ studentsOnBreak + Weekday, data = scienceData)
 
 summary(mod)
+```
 
-grid = imholteData %>%
+An r<sup>2</sup> of 0.48 is better than the previous model and better than the single-variable models individually, but once again its not better than our best model, COVID status and Weekday together.
+
+```{r}
+grid = scienceData %>%
   data_grid(Weekday,studentsOnBreak) %>%
   add_predictions(mod, "Science_East_Wing")
 
-grid
-
-ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
+ggplot(scienceData, aes(Weekday, Science_East_Wing)) +
   geom_boxplot() +
   geom_point(data = grid, aes(colour = factor(studentsOnBreak)), size = 4)
 
-imholteData <- imholteData %>%
+scienceData <- scienceData %>%
   add_residuals(mod, var="Science_onBreakWday_Resids")
 
-ggplot(imholteData, aes(Date, Science_onBreakWday_Resids)) + 
+ggplot(scienceData, aes(Date, Science_onBreakWday_Resids)) + 
   geom_ref_line(h=0) + 
   geom_line()
-
-
-# Create a model by preCovid and weekday and onBreak
-mod <- lm(Science_East_Wing ~ preCOVID + Weekday + studentsOnBreak, data = imholteData)
-
-
-summary(mod)
-
-grid = imholteData %>%
-  data_grid(Weekday,preCOVID, studentsOnBreak) %>%
-  add_predictions(mod, "Science_East_Wing")
-
-grid
-
-ggplot(imholteData, aes(Weekday, Science_East_Wing)) +
-  geom_boxplot() +
-  geom_point(data = grid, aes(colour = factor(preCOVID), shape = factor(studentsOnBreak)), size = 4)
-
-imholteData <- imholteData %>%
-  add_residuals(mod, var="Science_all_Resids")
-
-ggplot(imholteData, aes(Date, Science_all_Resids)) + 
-  geom_ref_line(h=0) + 
-  geom_line()
-
 ```
+
+---
+
+## Conclusions
+
+These results have lead us to draw the following conclusions about the electrical demand for the tree buildings:
+
+- The explanatory variables with the strongest correlation with electrical demand of Behmler Hall were month and day of the week both used in a model together.
+- The explanatory variables with the strongest correlation with electrical demand of Pine Hall were COVID status and whether or not students were on break both used in a model together.
+- The explanatory variables with the strongest correlation with electrical demand of the Science Building were COVID status and day of the week both used in a model together.
+- COVID seemed to have a strong correlation with all 3 buildings.
+- Surprisingly, Dry Bulb Temperature did not seem to have a super strong correlation with the electrical demand of these buildings.

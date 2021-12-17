@@ -15,6 +15,11 @@ shinyUI(fluidPage(
 
     # Application title
     titlePanel("Electrical Demand at UMM"),
+    
+    p("Explore Linear Models of Electrical demand of various UMM buildings during the years 2018-2021. 
+      All data is from the University of Minnesota measured using the buildings modbus sensors and can be found ", 
+      a(href="https://em-cof.energy.umn.edu/meterreport/", "here"), 
+      "."),
 
     # Sidebar with a slider input for number of bins
     sidebarLayout(
@@ -36,9 +41,10 @@ shinyUI(fluidPage(
         
             checkboxGroupInput("explanatory", "Choose up to three explanatory variables:",
                                list("Dry_Bulb", "Wet_Bulb", "Humidity", "Dewpoint",
-                                    "Weekday", "Month", "preCOVID", "studentsOnBreak")),
+                                    "Weekday", "Month", "preCOVID", "studentsOnBreak"),
+                               selected=list("Dry_Bulb")),
             
-            actionButton("generate", "Generate Graph")
+            actionButton("generate", "Generate Model")
             ),
 
         # Show a plot of the generated distribution
@@ -47,7 +53,13 @@ shinyUI(fluidPage(
             
             plotOutput("distPlot"),
             
-            plotOutput("residualPlot")
+            plotOutput("residualPlot"),
+            
+            
+            tags$style(type="text/css",
+                       ".shiny-output-error {visibility:hidden;}",
+                       ".shiny-output-error:before { visibility:hidden;}")
         )
+        
     )
 ))
